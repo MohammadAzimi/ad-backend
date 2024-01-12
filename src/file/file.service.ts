@@ -3,6 +3,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   StreamableFile,
@@ -36,7 +37,7 @@ import { PanelFilesNameEnum } from './enums/panel.files.name.enum';
 @Injectable()
 export class FileService {
   private logger = new Logger(FileService.name);
-  private rootDir = os.platform() === 'linux' ? '/temp/samand' : process.cwd();
+  private rootDir = '../samand';
   constructor(
     @InjectModel(File.name) private fileModel: Model<File>,
     @Inject(forwardRef(() => ConductorService)) private conductorService: ConductorService,
@@ -164,6 +165,9 @@ export class FileService {
   async getFileById(id: string | mongoose.Types.ObjectId): Promise<FileDocument> {
     return this.fileModel.findById(id);
   }
+  async countOperatorsFiles(ownerId: string): Promise<number> {
+    return this.fileModel.count({ ownerId });
+  }
 
   async deleteFile(initiator: UserJwtPayload, fileId: string): Promise<{ message: string }> {
     const file = await this.fileModel.findOne({ _id: fileId, ownerId: initiator.id });
@@ -227,9 +231,11 @@ export class FileService {
 
   downloadPanelFile(fileName: PanelFilesNameEnum): StreamableFile {
     const files = readdirSync(join(this.rootDir, `/public`));
-    let name = `${fileName}_default.png`;
+    let name = fileName.toLowerCase();
     if (files.length > 1) {
-      name = files.find((f) => f !== name);
+      name = files.find((f) => f.includes(name));
+    } else {
+      throw new InternalServerErrorException(` ${fileName}   فایل پنلی مورد نظر پیدا نشد: `);
     }
     const stream = createReadStream(join(this.rootDir, '/public', name));
     return new StreamableFile(stream);
